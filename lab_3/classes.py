@@ -1,8 +1,5 @@
-# Var 9
-# %%
-# =============================================================================
-from logging import debug, basicConfig, DEBUG
-# basicConfig(level=DEBUG)
+import csv
+from logging import debug
 ID_KEY = "id"
 
 
@@ -53,17 +50,27 @@ class Entity(dict, metaclass=Meta):
     def __init__(self):
         dict.__init__(self)
         self._setting_id()
+
+    def _setting_id(self, _id: int = None):
         cls = self.__class__
+        if _id is None:
+            cls._last_id += 1
+            _id = cls._last_id
+        else:
+            if self.get(ID_KEY):
+                self._entity_dict.pop(self.get(ID_KEY))
+            ed = cls._entity_dict
+            if ed:
+                cls._last_id = max(ed.keys())
+            else:
+                cls._entity_dict = {}
+                cls._last_id = _id
+
         if cls._entity_dict is None:
             cls._entity_dict = {}
-        self.__class__._entity_dict[self.id] = self
 
-    # def __hash__(self):
-    #     return str(self.id)
-
-    def _setting_id(self):
-        self.__class__._last_id += 1
-        dict.__setitem__(self, ID_KEY, self.__class__._last_id)
+        dict.__setitem__(self, ID_KEY, _id)
+        cls._entity_dict[_id] = self
 
     def __del__(self):
         """Удаление экземпляра класса
@@ -84,7 +91,7 @@ class Entity(dict, metaclass=Meta):
 
         if self.id in ed:
             del ed[self.id]
-    
+
     # Для пользовательского вызова `entity.delete()`
     delete = __del__
 
@@ -205,6 +212,50 @@ class Entity(dict, metaclass=Meta):
             return False
         return True
 
+    @classmethod
+    def save(cls, filename: str = None):
+        filename = filename or cls.__name__.lower() + '.csv'
+        debug("Start saving to %r file...", filename)
+
+        with open(filename, 'w', newline='\n', encoding='utf-8') \
+                as database:
+            csv_writer = csv.DictWriter(
+                database, delimiter=';', quotechar='"',
+                quoting=csv.QUOTE_MINIMAL, fieldnames=cls.__slots__)
+            csv_writer.writeheader()
+            for e in cls._entity_dict.values():
+                line = dict(map(
+                    lambda i: (i[0], i[1].id) if isinstance(
+                        i[1], Entity
+                    ) else i,
+                    e.items()
+                ))
+                csv_writer.writerow(line)
+
+        debug("Data saved to %r file!", filename)
+
+    @classmethod
+    def load(cls, filename: str = None):
+        filename = filename or cls.__name__.lower() + '.csv'
+        debug("Start loading from %r file...", filename)
+
+        with open(filename, 'r', newline='\n', encoding='utf-8') \
+                as database:
+            reader = csv.DictReader(
+                database, delimiter=';', quotechar='"',
+                quoting=csv.QUOTE_MINIMAL, fieldnames=cls.__slots__)
+            next(reader)
+            for data in reader:
+                _id = int(data.pop(ID_KEY))
+                for k, v in data.items():
+                    if v.isdigit():
+                        data[k] = int(v)
+                e = cls(**data)
+                e._setting_id(_id)
+                print(e)
+
+        debug("Data loaded from %r file!", filename)
+
 
 # =============================================================================
 # Дисциплина
@@ -232,57 +283,3 @@ class Departament(Entity):
         self.teacher_count = teacher_count
 
         self.subject = Subject[subject].recursive_delete(self)
-
-
-# %%
-# =============================================================================
-# Тестирование
-
-print("Проверка на создание объектов:")
-s1 = Subject("Название дисциплины", 1, 1, "форма контроля")
-d1 = Departament("Название Кафедры", 1, s1)
-print(s1, d1)
-print(" ======== ")
-
-print("Вывод через атрибут:", s1.name, sep='\t')
-print("Вывод через ключ:", s1['name'], sep='\t')
-s1.name += " 2"
-print("Вывод изменённого имени:", s1.name, sep='\t')
-print(" ======== ")
-
-# %%
-# =============================================================================
-print("Проверка на удаление дисциплины:")
-print(Subject[1])
-del Subject[1]
-print("Удалено")
-print(Subject[1] is None)
-print(" ======== ")
-
-try:
-    print("Проверка на отсутствие данных в переменной:")
-    print(s1)
-except ValueError:
-    print("Проверка прошла успешно!")
-
-print(" ======== ")
-print("Проверка на отсутствие данных дисциплины на кафедре:")
-print(d1["subject"])
-print(" ======== ")
-
-# %%
-# =============================================================================
-print("Проверка на каскадное удаление объектов:")
-
-s2 = Subject("Название новой дисциплины", 1, 1, "форма контроля")
-d2 = Departament("Название Кафедры 2", 1, s2)
-print(s2, d1)
-print(" ======== ")
-print("Удаление кафедры")
-del Departament[2]
-print("Проверка на отсутсвие дисциплины и направления:")
-print(Departament[2] is None)
-print(s2.is_exist() is False)
-print(" ======== ")
-
-# TODO: Сделать создание самой бд в CSV

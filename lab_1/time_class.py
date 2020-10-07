@@ -1,4 +1,4 @@
-# Var 9
+
 
 class Time:
     def __init__(self, hours: int, minutes: int, seconds: int):
@@ -17,19 +17,16 @@ class Time:
         self._check_time()
 
     def _check_time(self):
-        if self.s >= 60:
-            self.s %= 60
-            self.m += 1
+        self.m += self.s // 60
+        self.s %= 60
 
-        if self.m >= 60:
-            self.h %= 60
-            self.h += 1
+        self.h += self.m // 60
+        self.m %= 60
 
-        if self.h >= 24:
-            self.h %= 24
+        self.h %= 24
 
     def get_seconds(self):
-        return self.s + self.m * 60 + self.h * 360
+        return self.s + self.m * 60 + self.h * 3600
 
     def add_seconds(self):
         self.s += 5
@@ -54,8 +51,3 @@ class Time:
             self.m,
             self.s,
         )
-
-
-t = Time(10, 12, 43)
-print(repr(t))
-print(t)
